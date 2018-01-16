@@ -116,7 +116,8 @@ s.latency= 0.05;
 s.boot;
 
 a= AudioMulchClock.new;
-//now press play in AudioMulch - make sure 'Generate Network Sync' is set under the control menu.
+//now press play in AudioMulch - make sure 'Generate Network Sync' is set
+//under the control menu and that you send to the correct IP and port.
 a.beatDur	//will fluctuate because of network jitter
 a.beats
 a.tempo		//will fluctuate because of network jitter
