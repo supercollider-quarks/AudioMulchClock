@@ -16,9 +16,9 @@
 // - added permanent flag, beatsPerBar, start and stop actions.
 
 AudioMulchClock {
-	var	<running = false, <tick = 0, <>shift = 0, <>beatsPerBar= 4, <>permanent= false,
-		<tempo = 1, <>startAction = nil, <>stopAction = nil, avg, lastTime = 0,
-		queue, start, stop, pulse;
+	var	<running = false, <tick = 0, <>shift = 0, <>beatsPerBar= 4, <permanent= false,
+	<tempo = 1, <>startAction = nil, <>stopAction = nil, avg, lastTime = 0,
+	queue, start, stop, pulse, clearFunc;
 	classvar defaultClock = nil;
 	*new {
 		^super.new.initAudioMulchClock;
@@ -31,15 +31,11 @@ AudioMulchClock {
 	initAudioMulchClock {
 		queue= PriorityQueue.new;
 		avg= FloatArray.newClear(10);
-		start= OSCresponderNode(nil, \t_start, {|t, r, m|
+		start= OSCFunc({|m, t, r|
 			var items = [];
 			if(m[1]!=tick, {
 				(this.class.name++": start "++m[1]).postln;
-				if(PriorityQueue.findMethod(\do).notNil) { // 3.5 support
-					queue.do {|item| items = items.add(item)};
-				} {
-					queue.array.pairsDo{|time, item| items = items.add(item)};
-				};
+				queue.do {|item| items = items.add(item)};
 				queue.clear;
 				items.do {|item| item.reset; this.schedAbs(m[1].roundUp(beatsPerBar*24), item)};
 			}, {
@@ -49,19 +45,37 @@ AudioMulchClock {
 			running= true;
 			this.startAction.value;
 			this.doPulse(t,r,m);
-		}).add;
-		stop= OSCresponderNode(nil, \t_stop, {|t, r, m|
+		}, \t_start);
+		stop= OSCFunc({|m|
 			if(running, {
 				(this.class.name++": stop").postln;
 				running= false;
 				stopAction.value;
 			});
-		}).add;
-		pulse= OSCresponderNode(nil, \t_pulse, {|t, r, m|
+		}, \t_stop);
+		pulse= OSCFunc({|m, t, r|
 			this.doPulse(t,r,m);
-		}).add;
-		
-		CmdPeriod.doOnce {this.clear};
+		}, \t_pulse);
+		clearFunc= {|flag= false|
+			(this.class.name++": clear").postln;
+			queue.do {|item| item.removedFromScheduler};
+			queue.clear;
+			if(permanent.not, {
+				CmdPeriod.remove(clearFunc);
+			}, {
+				if(flag, {
+					CmdPeriod.remove(clearFunc);
+				});
+			});
+			running= false;
+		};
+		CmdPeriod.add(clearFunc);
+	}
+	permanent_ {|bool|
+		start.permanent_(bool);
+		stop.permanent_(bool);
+		pulse.permanent_(bool);
+		permanent= bool;
 	}
 	doPulse {|t,r,m|
 		var time, avgs;
@@ -70,7 +84,7 @@ AudioMulchClock {
 		lastTime = Main.elapsedTime;
 		avgs = avg.sum;
 		tempo = 10/(avgs*24);
-		while({time = queue.topPriority; time.notNil and:{time.floor<=tick}}, { 
+		while({time = queue.topPriority; time.notNil and:{time.floor<=tick}}, {
 			this.doSched(time-tick, queue.pop, avgs/tick.clip(1,10));
 			//note: avg.sum won't be correct before the first 10 ticks.. probably not a big deal in most cases.
 		});
@@ -102,6 +116,12 @@ AudioMulchClock {
 	schedAbs {|tick, item|
 		queue.put(tick, item);
 	}
+	beats2secs {|beats|
+		^beats/tempo;
+	}
+	secs2beats {|secs|
+		^secs*tempo;
+	}
 	nextTimeOnGrid {|quant= 1, phase= 0|
 		if(quant.isNumber.not, {
 			quant= quant.quant;
@@ -111,20 +131,9 @@ AudioMulchClock {
 		^tick+((24*quant)-(tick%(24*quant)))+(phase%quant*24);
 	}
 	clear {
-		(this.class.name++": clear").postln;
-		if(PriorityQueue.findMethod(\do).notNil) { // 3.5 support
-			queue.do {|item| item.removedFromScheduler};
-		} {
-			queue.array.pairsDo{|time, item| item.removedFromScheduler};
-		};
-		queue.clear;
-		if(permanent.not, {
-			start.remove;
-			stop.remove;
-			pulse.remove;
-		},{
-			CmdPeriod.doOnce {this.clear};
-		});
-		running= false;
+		start.free;
+		stop.free;
+		pulse.free;
+		clearFunc.value(true);
 	}
 }

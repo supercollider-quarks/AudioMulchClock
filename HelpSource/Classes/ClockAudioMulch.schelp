@@ -43,7 +43,7 @@ s.boot
 //make sure AudioMulch is running in the background (press play)
 //and that chase network sync is enabled in the control meny
 c= ClockAudioMulch(123/60, addr:NetAddr("127.0.0.1", 7000));
-d= Pbind(\dur, 1, \octave, 5, \degree, Pseq([0, 1, 2, 4, 3, 2, 1, 1], inf)).play(c, quant:4);
+d= Pbind(\dur, 1, \amp, 0.5, \legato, 0.2, \octave, 6, \degree, Pseq([0, 1, 2, 4, 3, 2, 1, 1], inf)).play(c, quant:4);
 c.shift= -2;
 c.tempo= 234/60;
 d.stop;
